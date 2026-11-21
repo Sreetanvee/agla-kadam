@@ -1049,7 +1049,7 @@ app.post('/api/v1/ai/voice/transcribe', aiRateLimit, async (req, res) => {
     }
     const ai = getAiClient();
     const response = await ai.models.generateContent({
-      model: 'gemini-3.5-transcribe',
+     model: 'gemini-3.8-flash',
       contents: {
         parts: [
           { inlineData: { mimeType, data: audioBase64 } },
