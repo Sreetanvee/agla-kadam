@@ -1,0 +1,345 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core hardened primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    // Supports both Google OAuth and newly registered Email/Password users via cryptographically verified UID
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // Admin bootstrap strictly requires verified email to prevent email spoofing
+    function isAdmin() {
+      return isEmailVerified() && (
+        request.auth.token.email == 'sreetanveejonnala@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isBoundedString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isOptionalBoundedString(data, key, maxLen) {
+      return !(key in data) || (data[key] is string && data[key].size() <= maxLen);
+    }
+
+    function isBoundedList(val, maxItems) {
+      return val is list && val.size() <= maxItems && (val.size() == 0 || val[0] is string || val[0] is map);
+    }
+
+    // Entity validation helpers synchronized with firebase-blueprint.json
+    function isValidUserAccount(data, userId) {
+      return data.keys().hasAll(['uid', 'displayName', 'email', 'role', 'preferredLanguage', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'displayName', 'email', 'role', 'preferredLanguage', 'currentStage', 'createdAt', 'updatedAt'])
+        && data.uid == userId
+        && isValidId(data.uid)
+        && isBoundedString(data.displayName, 1, 120)
+        && isBoundedString(data.email, 3, 200)
+        && data.role in ['student', 'curator', 'admin']
+        && data.preferredLanguage in ['en', 'te', 'hi']
+        && isOptionalBoundedString(data, 'currentStage', 80)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidStudentProfile(data, userId) {
+      return data.keys().hasAll(['userId', 'educationLevel', 'stream', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'educationLevel', 'stream', 'location', 'preferredLocation', 'budgetRange', 'interests', 'strengths', 'goals', 'trackPreferences', 'updatedAt'])
+        && data.userId == userId
+        && isBoundedString(data.educationLevel, 1, 80)
+        && isBoundedString(data.stream, 1, 80)
+        && isOptionalBoundedString(data, 'location', 120)
+        && isOptionalBoundedString(data, 'preferredLocation', 120)
+        && isOptionalBoundedString(data, 'budgetRange', 80)
+        && (!('interests' in data) || isBoundedList(data.interests, 20))
+        && (!('strengths' in data) || isBoundedList(data.strengths, 20))
+        && (!('goals' in data) || isBoundedList(data.goals, 20))
+        && (!('trackPreferences' in data) || isBoundedList(data.trackPreferences, 10))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidRoadmap(data, userId) {
+      return data.keys().hasAll(['userId', 'title', 'educationStage', 'pathways', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'title', 'educationStage', 'summary', 'pathways', 'selectedPathwayId', 'completedMilestones', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && isBoundedString(data.title, 1, 160)
+        && isBoundedString(data.educationStage, 1, 80)
+        && isOptionalBoundedString(data, 'summary', 600)
+        && isBoundedList(data.pathways, 5)
+        && isOptionalBoundedString(data, 'selectedPathwayId', 80)
+        && (!('completedMilestones' in data) || isBoundedList(data.completedMilestones, 50))
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidBookmark(data, userId) {
+      return data.keys().hasAll(['userId', 'itemType', 'itemId', 'title', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'itemType', 'itemId', 'title', 'category', 'notes', 'createdAt'])
+        && data.userId == userId
+        && data.itemType in ['guide', 'opportunity', 'university', 'journey']
+        && isValidId(data.itemId)
+        && isBoundedString(data.title, 1, 200)
+        && isOptionalBoundedString(data, 'category', 100)
+        && isOptionalBoundedString(data, 'notes', 500)
+        && data.createdAt is timestamp;
+    }
+
+    function isValidDeadline(data, userId) {
+      return data.keys().hasAll(['userId', 'title', 'dueDate', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'title', 'category', 'dueDate', 'status', 'officialUrl', 'notes', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && isBoundedString(data.title, 1, 200)
+        && isOptionalBoundedString(data, 'category', 80)
+        && isBoundedString(data.dueDate, 4, 32)
+        && data.status in ['watching', 'in_progress', 'submitted']
+        && isOptionalBoundedString(data, 'officialUrl', 500)
+        && isOptionalBoundedString(data, 'notes', 500)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAchievement(data, userId) {
+      return data.keys().hasAll(['userId', 'title', 'category', 'issuer', 'dateEarned', 'createdAt'])
+        && data.keys().hasOnly(['userId', 'title', 'category', 'issuer', 'dateEarned', 'verificationUrl', 'reflection', 'skills', 'createdAt'])
+        && data.userId == userId
+        && isBoundedString(data.title, 1, 180)
+        && data.category in ['academic', 'examination', 'research', 'internship', 'scholarship', 'certification', 'competition', 'startup', 'volunteering']
+        && isBoundedString(data.issuer, 1, 160)
+        && isBoundedString(data.dateEarned, 4, 32)
+        && isOptionalBoundedString(data, 'verificationUrl', 500)
+        && isOptionalBoundedString(data, 'reflection', 600)
+        && (!('skills' in data) || isBoundedList(data.skills, 15))
+        && data.createdAt is timestamp;
+    }
+
+    function isValidConversation(data, userId) {
+      return data.keys().hasAll(['userId', 'title', 'language', 'messages', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'title', 'language', 'noStupidMode', 'messages', 'createdAt', 'updatedAt'])
+        && data.userId == userId
+        && isBoundedString(data.title, 1, 180)
+        && data.language in ['en', 'te', 'hi']
+        && (!('noStupidMode' in data) || data.noStupidMode is bool)
+        && isBoundedList(data.messages, 80)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLearningProgress(data, userId) {
+      return data.keys().hasAll(['userId', 'itemType', 'itemId', 'title', 'percentComplete', 'updatedAt'])
+        && data.keys().hasOnly(['userId', 'itemType', 'itemId', 'title', 'completedSteps', 'percentComplete', 'updatedAt'])
+        && data.userId == userId
+        && data.itemType in ['guide', 'journey']
+        && isValidId(data.itemId)
+        && isBoundedString(data.title, 1, 200)
+        && (!('completedSteps' in data) || isBoundedList(data.completedSteps, 40))
+        && data.percentComplete is number
+        && data.percentComplete >= 0 && data.percentComplete <= 100
+        && data.updatedAt is timestamp;
+    }
+
+    // Connection probe document (read-only)
+    match /test/connection {
+      allow get: if true;
+    }
+
+    // Admin registry (read-only for verified admin)
+    match /admins/{adminId} {
+      allow get: if isValidId(adminId) && isEmailVerified() && request.auth.uid == adminId;
+    }
+
+    // User root document (strict PII isolation + no self-role escalation)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().role == 'student'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(userId)
+        && isValidUserAccount(incoming(), userId)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin() ||
+          (isOwner(userId)
+            && incoming().role == existing().role
+            && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'preferredLanguage', 'currentStage', 'updatedAt']))
+        );
+      allow delete: if isValidId(userId) && (isOwner(userId) || isAdmin());
+
+      // Student Profile subcollection
+      match /profile/{profileId} {
+        allow get: if isValidId(userId) && isValidId(profileId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(profileId)
+          && isOwner(userId)
+          && isValidStudentProfile(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(profileId)
+          && isValidStudentProfile(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['educationLevel', 'stream', 'location', 'preferredLocation', 'budgetRange', 'interests', 'strengths', 'goals', 'trackPreferences', 'updatedAt']))
+          );
+        allow delete: if isValidId(userId) && isValidId(profileId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Saved Roadmaps subcollection
+      match /roadmaps/{roadmapId} {
+        allow get: if isValidId(userId) && isValidId(roadmapId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(roadmapId)
+          && isOwner(userId)
+          && isValidRoadmap(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(roadmapId)
+          && isValidRoadmap(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'summary', 'selectedPathwayId', 'completedMilestones', 'updatedAt']))
+          );
+        allow delete: if isValidId(userId) && isValidId(roadmapId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Bookmarks subcollection
+      match /bookmarks/{bookmarkId} {
+        allow get: if isValidId(userId) && isValidId(bookmarkId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(bookmarkId)
+          && isOwner(userId)
+          && isValidBookmark(incoming(), userId)
+          && incoming().createdAt == request.time;
+        allow update: if isValidId(userId) && isValidId(bookmarkId)
+          && isValidBookmark(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['notes']))
+          );
+        allow delete: if isValidId(userId) && isValidId(bookmarkId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Deadlines subcollection
+      match /deadlines/{deadlineId} {
+        allow get: if isValidId(userId) && isValidId(deadlineId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(deadlineId)
+          && isOwner(userId)
+          && isValidDeadline(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(deadlineId)
+          && isValidDeadline(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && existing().status != 'submitted'
+              && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'dueDate', 'status', 'officialUrl', 'notes', 'updatedAt']))
+          );
+        allow delete: if isValidId(userId) && isValidId(deadlineId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Achievements subcollection
+      match /achievements/{achievementId} {
+        allow get: if isValidId(userId) && isValidId(achievementId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(achievementId)
+          && isOwner(userId)
+          && isValidAchievement(incoming(), userId)
+          && incoming().createdAt == request.time;
+        allow update: if isValidId(userId) && isValidId(achievementId)
+          && isValidAchievement(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'issuer', 'dateEarned', 'verificationUrl', 'reflection', 'skills']))
+          );
+        allow delete: if isValidId(userId) && isValidId(achievementId) && (isOwner(userId) || isAdmin());
+      }
+
+      // AI Conversations subcollection
+      match /aiConversations/{conversationId} {
+        allow get: if isValidId(userId) && isValidId(conversationId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(conversationId)
+          && isOwner(userId)
+          && isValidConversation(incoming(), userId)
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(conversationId)
+          && isValidConversation(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'language', 'noStupidMode', 'messages', 'updatedAt']))
+          );
+        allow delete: if isValidId(userId) && isValidId(conversationId) && (isOwner(userId) || isAdmin());
+      }
+
+      // Learning Progress subcollection
+      match /learningProgress/{progressId} {
+        allow get: if isValidId(userId) && isValidId(progressId) && (isOwner(userId) || isAdmin());
+        allow list: if isValidId(userId) && (isOwner(userId) || isAdmin()) && resource.data.userId == userId;
+        allow create: if isValidId(userId) && isValidId(progressId)
+          && isOwner(userId)
+          && isValidLearningProgress(incoming(), userId)
+          && incoming().updatedAt == request.time;
+        allow update: if isValidId(userId) && isValidId(progressId)
+          && isValidLearningProgress(incoming(), userId)
+          && incoming().userId == existing().userId
+          && incoming().updatedAt == request.time
+          && (
+            isAdmin() ||
+            (isOwner(userId)
+              && incoming().diff(existing()).affectedKeys().hasOnly(['completedSteps', 'percentComplete', 'updatedAt']))
+          );
+        allow delete: if isValidId(userId) && isValidId(progressId) && (isOwner(userId) || isAdmin());
+      }
+    }
+  }
+}

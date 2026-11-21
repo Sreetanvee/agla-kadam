@@ -1,0 +1,169 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Authenticated student account root with role and privacy preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "role": { "type": "string", "enum": ["student", "curator", "admin"] },
+        "preferredLanguage": { "type": "string", "enum": ["en", "te", "hi"] },
+        "currentStage": { "type": "string", "maxLength": 80 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "email", "role", "preferredLanguage", "createdAt", "updatedAt"]
+    },
+    "StudentProfile": {
+      "title": "StudentProfile",
+      "description": "Progressive academic and career guidance preferences for a student.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "educationLevel": { "type": "string", "maxLength": 80 },
+        "stream": { "type": "string", "maxLength": 80 },
+        "location": { "type": "string", "maxLength": 120 },
+        "preferredLocation": { "type": "string", "maxLength": 120 },
+        "budgetRange": { "type": "string", "maxLength": 80 },
+        "interests": { "type": "array" },
+        "strengths": { "type": "array" },
+        "goals": { "type": "array" },
+        "trackPreferences": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "educationLevel", "stream", "updatedAt"]
+    },
+    "SavedRoadmap": {
+      "title": "SavedRoadmap",
+      "description": "A saved My Next Kadam personalised multi-pathway roadmap.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 160 },
+        "educationStage": { "type": "string", "maxLength": 80 },
+        "summary": { "type": "string", "maxLength": 600 },
+        "pathways": { "type": "array" },
+        "selectedPathwayId": { "type": "string", "maxLength": 80 },
+        "completedMilestones": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "educationStage", "pathways", "createdAt", "updatedAt"]
+    },
+    "Bookmark": {
+      "title": "Bookmark",
+      "description": "Saved guide, opportunity, university, or learning journey.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "itemType": { "type": "string", "enum": ["guide", "opportunity", "university", "journey"] },
+        "itemId": { "type": "string", "maxLength": 120, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "itemType", "itemId", "title", "createdAt"]
+    },
+    "Deadline": {
+      "title": "Deadline",
+      "description": "Tracked opportunity or examination deadline on the Opportunity Calendar.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 80 },
+        "dueDate": { "type": "string", "maxLength": 32 },
+        "status": { "type": "string", "enum": ["watching", "in_progress", "submitted"] },
+        "officialUrl": { "type": "string", "maxLength": 500 },
+        "notes": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "dueDate", "status", "createdAt", "updatedAt"]
+    },
+    "Achievement": {
+      "title": "Achievement",
+      "description": "Personal milestone, certificate, or project stored in My Achievement Locker.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 180 },
+        "category": { "type": "string", "enum": ["academic", "examination", "research", "internship", "scholarship", "certification", "competition", "startup", "volunteering"] },
+        "issuer": { "type": "string", "maxLength": 160 },
+        "dateEarned": { "type": "string", "maxLength": 32 },
+        "verificationUrl": { "type": "string", "maxLength": 500 },
+        "reflection": { "type": "string", "maxLength": 600 },
+        "skills": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "category", "issuer", "dateEarned", "createdAt"]
+    },
+    "AiConversation": {
+      "title": "AiConversation",
+      "description": "Saved Kadam AI conversation thread.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 180 },
+        "language": { "type": "string", "enum": ["en", "te", "hi"] },
+        "noStupidMode": { "type": "boolean" },
+        "messages": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "language", "messages", "createdAt", "updatedAt"]
+    },
+    "LearningProgress": {
+      "title": "LearningProgress",
+      "description": "Student progress on completed guides and learning journey stages.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "itemType": { "type": "string", "enum": ["guide", "journey"] },
+        "itemId": { "type": "string", "maxLength": 120, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "maxLength": 200 },
+        "completedSteps": { "type": "array" },
+        "percentComplete": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "itemType", "itemId", "title", "percentComplete", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Private root user account document."
+    },
+    "/users/{userId}/profile/{profileId}": {
+      "schema": { "$ref": "#/entities/StudentProfile" },
+      "description": "Student progressive profile document."
+    },
+    "/users/{userId}/roadmaps/{roadmapId}": {
+      "schema": { "$ref": "#/entities/SavedRoadmap" },
+      "description": "Saved personalised My Next Kadam roadmaps."
+    },
+    "/users/{userId}/bookmarks/{bookmarkId}": {
+      "schema": { "$ref": "#/entities/Bookmark" },
+      "description": "Saved guides, opportunities, universities, and journeys."
+    },
+    "/users/{userId}/deadlines/{deadlineId}": {
+      "schema": { "$ref": "#/entities/Deadline" },
+      "description": "Tracked Opportunity Calendar deadlines."
+    },
+    "/users/{userId}/achievements/{achievementId}": {
+      "schema": { "$ref": "#/entities/Achievement" },
+      "description": "My Achievement Locker and Growth Timeline items."
+    },
+    "/users/{userId}/aiConversations/{conversationId}": {
+      "schema": { "$ref": "#/entities/AiConversation" },
+      "description": "Kadam AI saved conversation history."
+    },
+    "/users/{userId}/learningProgress/{progressId}": {
+      "schema": { "$ref": "#/entities/LearningProgress" },
+      "description": "Completed guides and journey stage progress."
+    }
+  }
+}
