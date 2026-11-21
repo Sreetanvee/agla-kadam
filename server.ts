@@ -685,7 +685,7 @@ ${guideContextText || 'None matched directly; provide general grounded guidance 
       : [];
 
     const response = await ai.models.generateContent({
-      model: 'gemini-4-hydrogen',
+       model: 'gemini-3.8-flash',
       contents: [
         ...recentHistory,
         { role: 'user', parts: [{ text: message.trim() }] },
